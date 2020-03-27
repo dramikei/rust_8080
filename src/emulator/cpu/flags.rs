@@ -17,10 +17,4 @@ impl Flags {
             ac: false,
         }
     }
-
-    // pub fn flag_test(&mut self) {
-    //     println!("We are in flags impl.");
-    // }
-
-
 }
