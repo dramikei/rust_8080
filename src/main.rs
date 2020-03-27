@@ -1,3 +1,9 @@
+use cpu::CPU;
+mod cpu;
+
+
 fn main() {
-    println!("Hello, world!");
+    let mut cpu = CPU::new();
+    cpu.a = 3;
+    println!("{}",cpu.a);
 }
