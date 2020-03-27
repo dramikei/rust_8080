@@ -1,9 +1,10 @@
-use cpu::CPU;
-mod cpu;
+use emulator::cpu::CPU;
+use emulator::Emulator;
+mod emulator;
 
 
 fn main() {
     let mut cpu = CPU::new();
-    cpu.a = 3;
-    println!("{}",cpu.a);
+    let emulator = Emulator::new();
+    emulator.loadRom(&mut cpu, 0x00);
 }

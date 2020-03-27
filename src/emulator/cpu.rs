@@ -41,5 +41,9 @@ impl CPU {
             interrupts_enabled: false,
         }
     }
+
+    // pub fn test(&mut self) {
+    //     self.a = 50;
+    // }
 }
 

@@ -1,4 +1,5 @@
 /target
+/rom/*
 **/*.rs.bk
 
 # Created by https://www.gitignore.io/api/vim,rust,macos,visualstudiocode

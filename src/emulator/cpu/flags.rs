@@ -18,5 +18,9 @@ impl Flags {
         }
     }
 
+    // pub fn flag_test(&mut self) {
+    //     println!("We are in flags impl.");
+    // }
+
 
 }
