@@ -185,6 +185,12 @@ impl Emulator {
             0x60 ..= 0x67 => Self::mov(cpu, Reg::H, Self::extract_argument(opcode)),
             0x68 ..= 0x6f => Self::mov(cpu, Reg::L, Self::extract_argument(opcode)),
             0x70 ..= 0x75 => Self::mov(cpu, Reg::HL, Self::extract_argument(opcode)),
+
+            0x76 => {
+                println!("OPCODE: 0x76 (HALT) Called. Killing Emulator...");
+                std::process::exit(0);
+            }
+            
             0x77 => Self::mov(cpu, Reg::HL, Self::extract_argument(opcode)),
             0x78 ..= 0x7f => Self::mov(cpu, Reg::A, Self::extract_argument(opcode)),
             0x80 ..= 0x87 => Self::add(cpu, Self::extract_argument(opcode), false),
