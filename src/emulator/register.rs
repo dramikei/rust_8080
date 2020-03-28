@@ -7,4 +7,5 @@ pub enum Reg {
     H,
     L,
     HL,
+    SP
 }

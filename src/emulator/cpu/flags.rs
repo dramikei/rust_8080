@@ -1,9 +1,9 @@
 pub struct Flags {
-    z: bool,
-    s: bool,
-    p: bool,
-    cy: bool,
-    ac: bool,
+    pub z: bool,
+    pub s: bool,
+    pub p: bool,
+    pub cy: bool,
+    pub ac: bool,
 
 }
 

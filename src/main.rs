@@ -6,7 +6,7 @@ mod emulator;
 fn main() {
     let mut cpu = CPU::new();
     let emulator = Emulator::new();
-    emulator.loadRom(&mut cpu, 0x00);
+    emulator.load_rom(&mut cpu, 0x00);
     loop {
         emulator.emulate(&mut cpu);
     }

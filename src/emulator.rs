@@ -1,4 +1,4 @@
-use cpu::CPU;
+// use cpu::CPU;
 use register::Reg;
 use std;
 pub mod cpu;
@@ -36,7 +36,7 @@ impl Emulator {
     }
 
 
-    pub fn loadRom(&self, cpu: &mut cpu::CPU, start: usize) {
+    pub fn load_rom(&self, cpu: &mut cpu::CPU, start: usize) {
         let x = std::include_bytes!("rom/invaders.rom");
         let mut i = 0;
         if x.len() > start+0xffff {
@@ -70,22 +70,46 @@ impl Emulator {
             Reg::E => cpu.b = value,
             Reg::H => cpu.b = value,
             Reg::L => cpu.b = value,
+            Reg::HL => {
+                let addr = (((cpu.h as u16) << 8) | (cpu.l as u16)) as usize;
+                cpu.memory[addr] = value;
+            },
             Reg::A => cpu.b = value,
-            //TODO: Add implementation for Write_To_(HL)
-            _ => panic!("write to HL called from wrong function!")
+            _ => panic!("ADD CALLED FROM WRONG REG!")
         }
     }
 
-    fn write_from_HL(cpu: &mut cpu::CPU, to: Reg) {
-        //TODO: implement write from HL
+    fn lxi(cpu: &mut cpu::CPU, to: Reg) {
         match to {
+            Reg::B => {
+                cpu.b = cpu.memory[(cpu.pc as usize) + 2];
+                cpu.c = cpu.memory[(cpu.pc as usize) + 1];
+            },
+            Reg::D => {
+                cpu.d = cpu.memory[(cpu.pc as usize) + 2];
+                cpu.e = cpu.memory[(cpu.pc as usize) + 1];
+            },
+            Reg::H => {
+                cpu.h = cpu.memory[(cpu.pc as usize) + 2];
+                cpu.l = cpu.memory[(cpu.pc as usize) + 1];
+            },
+            Reg::SP => {
+                cpu.sp = ((cpu.memory[(cpu.pc as usize) + 2] as u16) << 8 ) | (cpu.memory[(cpu.pc as usize) + 1] as u16);
+            },
             _ => {
-                panic!("Unimplemented From_HL_To_Reg");
+                panic!("LXI CALLED ON WRONG REG!");
             }
         }
+        cpu.pc = cpu.pc.wrapping_add(2);
     }
 
-    fn Mov(cpu: &mut cpu::CPU, to: Reg, mut from: Reg) {
+    fn mvi(cpu: &mut cpu::CPU, to: Reg) {
+        let value = cpu.memory[(cpu.pc as usize) + 1];
+        Self::write_to_reg(cpu, to, value);
+        cpu.pc = cpu.pc.wrapping_add(1);
+    }
+
+    fn mov(cpu: &mut cpu::CPU, to: Reg, from: Reg) {
         match from {
             Reg::B => Self::write_to_reg(cpu, to, cpu.b),
             Reg::C => Self::write_to_reg(cpu, to, cpu.c),
@@ -93,13 +117,42 @@ impl Emulator {
             Reg::E => Self::write_to_reg(cpu, to, cpu.e),
             Reg::H => Self::write_to_reg(cpu, to, cpu.h),
             Reg::L => Self::write_to_reg(cpu, to, cpu.l),
-            Reg::HL => Self::write_from_HL(cpu, to),
-            Reg::A => Self::write_to_reg(cpu, to, cpu.a)
+            Reg::HL => {
+                let addr = (((cpu.h as u16) << 8) | (cpu.l as u16)) as usize;
+                Self::write_to_reg(cpu, to, cpu.memory[addr]);
+            },
+            Reg::A => Self::write_to_reg(cpu, to, cpu.a),
+            _ => panic!("MOV CALLED FROM WRONG REG!")
         }
         
     }
 
-    fn Jmp(cpu: &mut cpu::CPU) {
+    //TODO: Implement flags
+    fn add(cpu: &mut cpu::CPU, from: Reg, carry: bool) {
+        let mut x = 0;
+        if carry {
+            x = 1;
+        } 
+        match from {
+            Reg::B => cpu.a = cpu.a.wrapping_add(cpu.b + x),
+            Reg::C => cpu.a = cpu.a.wrapping_add(cpu.c + x),
+            Reg::D => cpu.a = cpu.a.wrapping_add(cpu.d + x),
+            Reg::E => cpu.a = cpu.a.wrapping_add(cpu.e + x),
+            Reg::H => cpu.a = cpu.a.wrapping_add(cpu.h + x),
+            Reg::L => cpu.a = cpu.a.wrapping_add(cpu.l + x),
+
+            Reg::HL => {
+                let addr = (((cpu.h as u16) << 8) | (cpu.l as u16)) as usize;
+                cpu.a = cpu.a.wrapping_add(cpu.memory[addr] + x);
+            },
+
+            Reg::A => cpu.a = cpu.a.wrapping_add(cpu.a + x),
+            _ => panic!("ADD CALLED FROM WRONG REG!")
+            
+        }
+    }
+
+    fn jmp(cpu: &mut cpu::CPU) {
         cpu.pc = ((cpu.memory[(cpu.pc+2) as usize]) as u16) << 8 | (cpu.memory[(cpu.pc+1) as usize]) as u16;
         println!("Jumping to: {:x}",cpu.pc);
         //Decrementing PC as it is incremented at the end of emulate function;
@@ -108,30 +161,41 @@ impl Emulator {
 
     pub fn emulate(&self, cpu: &mut cpu::CPU) {
         let opcode: u8 = cpu.memory[cpu.pc as usize];
-        println!("opcode: 0x{:x}, pc: {:x}",opcode,cpu.pc);
+        println!("op: 0x{:x}, pc: {:x}, sp: {:x}",opcode,cpu.pc,cpu.sp);
         match opcode {
             0x00 => println!(""),
-            
-            //TODO: Check if extract_argument is consistent for all MOVs (or all opcodes)
-            0x40 ... 0x47 => Self::Mov(cpu, Reg::B, Self::extract_argument(opcode)),
-            0x48 ... 0x4f => Self::Mov(cpu, Reg::C, Self::extract_argument(opcode)),
-            0x50 ... 0x57 => Self::Mov(cpu, Reg::D, Self::extract_argument(opcode)),
-            0x58 ... 0x5f => Self::Mov(cpu, Reg::E, Self::extract_argument(opcode)),
-            0x60 ... 0x67 => Self::Mov(cpu, Reg::H, Self::extract_argument(opcode)),
-            0x68 ... 0x6f => Self::Mov(cpu, Reg::L, Self::extract_argument(opcode)),
-            0x70 ... 0x75 => Self::Mov(cpu, Reg::HL, Self::extract_argument(opcode)),
-            0x77 => Self::Mov(cpu, Reg::HL, Self::extract_argument(opcode)),
-            0x78 ... 0x7f => Self::Mov(cpu, Reg::A, Self::extract_argument(opcode)),
+            0x01 => Self::lxi(cpu, Reg::B),
+            0x06 => Self::mvi(cpu, Reg::B),
+            0x0e => Self::mvi(cpu, Reg::C),
+            0x11 => Self::lxi(cpu, Reg::D),
+            0x16 => Self::mvi(cpu, Reg::D),
+            0x1e => Self::mvi(cpu, Reg::E),
+            0x21 => Self::lxi(cpu, Reg::H),
+            0x26 => Self::mvi(cpu, Reg::H),
+            0x2e => Self::mvi(cpu, Reg::L),
+            0x31 => Self::lxi(cpu, Reg::SP),
+            0x36 => Self::mvi(cpu, Reg::HL),
+            0x3e => Self::mvi(cpu, Reg::A),
 
-            0xc3 => Self::Jmp(cpu),
+            //TODO: Check if extract_argument is consistent for all MOVs (or all opcodes)
+            0x40 ..= 0x47 => Self::mov(cpu, Reg::B, Self::extract_argument(opcode)),
+            0x48 ..= 0x4f => Self::mov(cpu, Reg::C, Self::extract_argument(opcode)),
+            0x50 ..= 0x57 => Self::mov(cpu, Reg::D, Self::extract_argument(opcode)),
+            0x58 ..= 0x5f => Self::mov(cpu, Reg::E, Self::extract_argument(opcode)),
+            0x60 ..= 0x67 => Self::mov(cpu, Reg::H, Self::extract_argument(opcode)),
+            0x68 ..= 0x6f => Self::mov(cpu, Reg::L, Self::extract_argument(opcode)),
+            0x70 ..= 0x75 => Self::mov(cpu, Reg::HL, Self::extract_argument(opcode)),
+            0x77 => Self::mov(cpu, Reg::HL, Self::extract_argument(opcode)),
+            0x78 ..= 0x7f => Self::mov(cpu, Reg::A, Self::extract_argument(opcode)),
+            0x80 ..= 0x87 => Self::add(cpu, Self::extract_argument(opcode), false),
+            0x88 ..= 0x8f => Self::add(cpu, Self::extract_argument(opcode), cpu.flags.cy),
+
+
+            0xc3 => Self::jmp(cpu),
             _ => {
                 panic!("Unimplemented Opcode: 0x{:x}", opcode);
             }
         }
-        cpu.pc += 1;
+        cpu.pc = cpu.pc.wrapping_add(1);
     }
-
-
-
-
 }
