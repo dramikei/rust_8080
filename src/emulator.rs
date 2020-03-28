@@ -127,29 +127,29 @@ impl Emulator {
         
     }
 
-    //TODO: Implement flags
+    //ADD function is also used by ADC instruction (ADD with Carry). (Thats why 3rd parameter of 'carry' exists)
     fn add(cpu: &mut cpu::CPU, from: Reg, carry: bool) {
-        let mut x = 0;
-        if carry {
-            x = 1;
-        } 
+        let result: u16;
+        let operand: u8;
         match from {
-            Reg::B => cpu.a = cpu.a.wrapping_add(cpu.b + x),
-            Reg::C => cpu.a = cpu.a.wrapping_add(cpu.c + x),
-            Reg::D => cpu.a = cpu.a.wrapping_add(cpu.d + x),
-            Reg::E => cpu.a = cpu.a.wrapping_add(cpu.e + x),
-            Reg::H => cpu.a = cpu.a.wrapping_add(cpu.h + x),
-            Reg::L => cpu.a = cpu.a.wrapping_add(cpu.l + x),
+            Reg::B => operand = cpu.b,
+            Reg::C => operand = cpu.c,
+            Reg::D => operand = cpu.d,
+            Reg::E => operand = cpu.e,
+            Reg::H => operand = cpu.h,
+            Reg::L => operand = cpu.l,
 
             Reg::HL => {
                 let addr = (((cpu.h as u16) << 8) | (cpu.l as u16)) as usize;
-                cpu.a = cpu.a.wrapping_add(cpu.memory[addr] + x);
+                operand = cpu.memory[addr];
             },
 
-            Reg::A => cpu.a = cpu.a.wrapping_add(cpu.a + x),
+            Reg::A => operand = cpu.a,
             _ => panic!("ADD CALLED FROM WRONG REG!")
-            
         }
+        result = (cpu.a as u16).wrapping_add(operand as u16).wrapping_add(carry as u16);
+        cpu.flags.set_all(result, (cpu.a & 0xf).wrapping_add(operand.wrapping_add(carry as u8) & 0xf));
+        cpu.a = result as u8;
     }
 
     fn jmp(cpu: &mut cpu::CPU) {
@@ -190,7 +190,7 @@ impl Emulator {
                 println!("OPCODE: 0x76 (HALT) Called. Killing Emulator...");
                 std::process::exit(0);
             }
-            
+
             0x77 => Self::mov(cpu, Reg::HL, Self::extract_argument(opcode)),
             0x78 ..= 0x7f => Self::mov(cpu, Reg::A, Self::extract_argument(opcode)),
             0x80 ..= 0x87 => Self::add(cpu, Self::extract_argument(opcode), false),
