@@ -75,7 +75,7 @@ impl Emulator {
                 cpu.memory[addr] = value;
             },
             Reg::A => cpu.b = value,
-            _ => panic!("ADD CALLED FROM WRONG REG!")
+            _ => panic!("write-to-reg CALLED ON WRONG REG!")
         }
     }
 
@@ -128,6 +128,7 @@ impl Emulator {
     }
 
     //ADD function is also used by ADC instruction (ADD with Carry). (Thats why 3rd parameter of 'carry' exists)
+    //Flags Affected: All
     fn add(cpu: &mut cpu::CPU, from: Reg, carry: bool) {
         let result: u16;
         let operand: u8;
@@ -150,6 +151,95 @@ impl Emulator {
         result = (cpu.a as u16).wrapping_add(operand as u16).wrapping_add(carry as u16);
         cpu.flags.set_all(result, (cpu.a & 0xf).wrapping_add(operand.wrapping_add(carry as u8) & 0xf));
         cpu.a = result as u8;
+    }
+
+
+    //SUB function is also used by SBB instruction. (Thats why 3rd parameter of 'carry' exists)
+    //TODO: Check
+    //Flags Affected: ALL
+    fn sub(cpu: &mut cpu::CPU, from: Reg, carry: bool) {
+        let result: u16;
+        let operand: u8;
+        match from {
+            Reg::B => operand = cpu.b,
+            Reg::C => operand = cpu.c,
+            Reg::D => operand = cpu.d,
+            Reg::E => operand = cpu.e,
+            Reg::H => operand = cpu.h,
+            Reg::L => operand = cpu.l,
+
+            Reg::HL => {
+                let addr = (((cpu.h as u16) << 8) | (cpu.l as u16)) as usize;
+                operand = cpu.memory[addr];
+            },
+
+            Reg::A => operand = cpu.a,
+            _ => panic!("SUB CALLED FROM WRONG REG!")
+        }
+        result = (cpu.a as u16).wrapping_sub(operand as u16).wrapping_sub(carry as u16);
+        cpu.flags.set_all(result, (cpu.a & 0xf).wrapping_sub(operand.wrapping_sub(carry as u8) & 0xf));
+        cpu.a = result as u8;
+    }
+
+
+    //Carry is reset to zero. Flags affected: Carry, Zero, Sign, Parity.
+    fn ana(cpu: &mut cpu::CPU, reg: Reg) {
+        let result: u16;
+        let operand: u8;
+        cpu.flags.cy = false;
+        match reg {
+            Reg::B => operand = cpu.b,
+            Reg::C => operand = cpu.c,
+            Reg::D => operand = cpu.d,
+            Reg::E => operand = cpu.e,
+            Reg::H => operand = cpu.h,
+            Reg::L => operand = cpu.l,
+
+            Reg::HL => {
+                let addr = (((cpu.h as u16) << 8) | (cpu.l as u16)) as usize;
+                operand = cpu.memory[addr];
+            },
+
+            Reg::A => operand = cpu.a,
+            _ => {
+                panic!("ANA Called on wrong REG!");
+            }
+        }
+        result = cpu.a as u16 & operand as u16;
+        cpu.flags.set_all_but_aux_carry(result);
+        cpu.a = result as u8;
+
+    }
+
+
+    //Carry is reset to zero. Flags affected: Carry, Zero, Sign, Parity.
+    fn xra(cpu: &mut cpu::CPU, reg: Reg) {
+        let result: u16;
+        let operand: u8;
+        cpu.flags.cy = false;
+        match reg {
+            Reg::B => operand = cpu.b,
+            Reg::C => operand = cpu.c,
+            Reg::D => operand = cpu.d,
+            Reg::E => operand = cpu.e,
+            Reg::H => operand = cpu.h,
+            Reg::L => operand = cpu.l,
+
+            Reg::HL => {
+                let addr = (((cpu.h as u16) << 8) | (cpu.l as u16)) as usize;
+                operand = cpu.memory[addr];
+            },
+
+            Reg::A => operand = cpu.a,
+            _ => {
+                panic!("XRA Called on wrong REG!");
+            }
+        }
+        result = cpu.a as u16 ^ operand as u16;
+        //TODO: Check if Aux Carry is affected or not.
+        cpu.flags.set_all_but_aux_carry(result);
+        cpu.a = result as u8;
+
     }
 
     fn jmp(cpu: &mut cpu::CPU) {
@@ -195,7 +285,10 @@ impl Emulator {
             0x78 ..= 0x7f => Self::mov(cpu, Reg::A, Self::extract_argument(opcode)),
             0x80 ..= 0x87 => Self::add(cpu, Self::extract_argument(opcode), false),
             0x88 ..= 0x8f => Self::add(cpu, Self::extract_argument(opcode), cpu.flags.cy),
-
+            0x90 ..= 0x97 => Self::sub(cpu, Self::extract_argument(opcode), false),
+            0x98 ..= 0x9f => Self::sub(cpu, Self::extract_argument(opcode), cpu.flags.cy),
+            0xA0 ..= 0xA7 => Self::ana(cpu, Self::extract_argument(opcode)),
+            0xA8 ..= 0xAf => Self::xra(cpu, Self::extract_argument(opcode)),
 
             0xc3 => Self::jmp(cpu),
             _ => {
