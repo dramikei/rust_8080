@@ -58,7 +58,7 @@ impl Emulator {
             0x5 | 0xD => Reg::L,
             0x6 | 0xE => Reg::HL,
             0x7 | 0xF => Reg::A,
-            _ => panic!("Could not resolve operating register for opcode {:x}",opcode),
+            _ => panic!("Could not resolve operating register for opcode {:02x}",opcode),
         }
     }
 
@@ -125,6 +125,22 @@ impl Emulator {
             _ => panic!("MOV CALLED FROM WRONG REG!")
         }
         
+    }
+
+    fn ldax(cpu: &mut cpu::CPU, from: Reg) {
+        match from {
+            Reg::B => {
+                let addr = ((cpu.b as u16) << 8) | cpu.c as u16;
+                cpu.a = cpu.memory[addr as usize];
+            },
+            Reg::D => {
+                let addr = ((cpu.d as u16) << 8) | cpu.e as u16;
+                cpu.a = cpu.memory[addr as usize];
+            },
+            _ => {
+                panic!("LDAX CALLED ON WRONG REG!");
+            }
+        }
     }
 
     //ADD function is also used by ADC instruction (ADD with Carry). (Thats why 3rd parameter of 'carry' exists)
@@ -211,6 +227,33 @@ impl Emulator {
 
     }
 
+    fn inx(cpu: &mut cpu::CPU, reg: Reg) {
+        match reg {
+            Reg::B => {
+                cpu.c = cpu.c.wrapping_add(1);
+                if cpu.c == 0 {
+                    cpu.b = cpu.b.wrapping_add(1);
+                }
+            },
+            Reg::D => {
+                cpu.e = cpu.e.wrapping_add(1);
+                if cpu.e == 0 {
+                    cpu.d = cpu.d.wrapping_add(1);
+                }
+            },
+            Reg::H => {
+                cpu.l = cpu.l.wrapping_add(1);
+                if cpu.l == 0 {
+                    cpu.h = cpu.h.wrapping_add(1);
+                }
+            },
+            Reg::SP => cpu.sp = cpu.sp.wrapping_add(1),
+            _ => {
+                panic!("INX CALLED ON WRONG REG!");
+            }
+        }
+    }
+
 
     //Carry is reset to zero. Flags affected: Carry, Zero, Sign, Parity.
     fn xra(cpu: &mut cpu::CPU, reg: Reg) {
@@ -244,26 +287,45 @@ impl Emulator {
 
     fn jmp(cpu: &mut cpu::CPU) {
         cpu.pc = ((cpu.memory[(cpu.pc+2) as usize]) as u16) << 8 | (cpu.memory[(cpu.pc+1) as usize]) as u16;
-        println!("Jumping to: {:x}",cpu.pc);
+        println!("Jumping to: {:04x}",cpu.pc);
         //Decrementing PC as it is incremented at the end of emulate function;
         cpu.pc -= 1;
     }
 
+    fn call(cpu: &mut cpu::CPU) {
+        println!("Instruction CALL called");
+        Self::push_to_stack(cpu, cpu.pc);
+        Self::jmp(cpu);
+    }
+
+    fn push_to_stack(cpu: &mut cpu::CPU, addr : u16) {
+        println!("Pushing to stack addr: {:04x}",addr);
+        cpu.memory[cpu.sp as usize - 1] = (addr >> 8) as u8;
+        cpu.memory[cpu.sp as usize - 2] = addr as u8;
+        cpu.sp = cpu.sp.wrapping_sub(2);
+    }
+
     pub fn emulate(&self, cpu: &mut cpu::CPU) {
         let opcode: u8 = cpu.memory[cpu.pc as usize];
-        println!("op: 0x{:x}, pc: {:x}, sp: {:x}",opcode,cpu.pc,cpu.sp);
+        println!("op: 0x{:02x}, pc: {:04x}, sp: {:04x}",opcode,cpu.pc,cpu.sp);
         match opcode {
             0x00 => println!(""),
             0x01 => Self::lxi(cpu, Reg::B),
+            0x03 => Self::inx(cpu, Reg::B),
             0x06 => Self::mvi(cpu, Reg::B),
+            0x0a => Self::ldax(cpu, Reg::B),
             0x0e => Self::mvi(cpu, Reg::C),
             0x11 => Self::lxi(cpu, Reg::D),
+            0x13 => Self::inx(cpu, Reg::D),
+            0x1a => Self::ldax(cpu, Reg::D),
             0x16 => Self::mvi(cpu, Reg::D),
             0x1e => Self::mvi(cpu, Reg::E),
             0x21 => Self::lxi(cpu, Reg::H),
+            0x23 => Self::inx(cpu, Reg::H),
             0x26 => Self::mvi(cpu, Reg::H),
             0x2e => Self::mvi(cpu, Reg::L),
             0x31 => Self::lxi(cpu, Reg::SP),
+            0x33 => Self::inx(cpu, Reg::SP),
             0x36 => Self::mvi(cpu, Reg::HL),
             0x3e => Self::mvi(cpu, Reg::A),
 
@@ -291,8 +353,9 @@ impl Emulator {
             0xA8 ..= 0xAf => Self::xra(cpu, Self::extract_argument(opcode)),
 
             0xc3 => Self::jmp(cpu),
+            0xcd => Self::call(cpu),
             _ => {
-                panic!("Unimplemented Opcode: 0x{:x}", opcode);
+                panic!("Unimplemented Opcode: 0x{:02x}", opcode);
             }
         }
         cpu.pc = cpu.pc.wrapping_add(1);
