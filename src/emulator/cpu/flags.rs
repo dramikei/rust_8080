@@ -66,6 +66,10 @@ impl Flags {
         self.cy = value > 0xff;
     }
 
+    pub fn set_carry_u32(&mut self, value: u32) {
+        self.cy = value > 0xffff;
+    }
+
     fn set_aux_carry(&mut self, value: u8) {
         self.ac = value > 0xf;
     }

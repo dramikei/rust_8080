@@ -65,16 +65,16 @@ impl Emulator {
     fn write_to_reg(cpu: &mut cpu::CPU, to: Reg, value: u8) {
         match to {
             Reg::B => cpu.b = value,
-            Reg::C => cpu.b = value,
-            Reg::D => cpu.b = value,
-            Reg::E => cpu.b = value,
-            Reg::H => cpu.b = value,
-            Reg::L => cpu.b = value,
+            Reg::C => cpu.c = value,
+            Reg::D => cpu.d = value,
+            Reg::E => cpu.e = value,
+            Reg::H => cpu.h = value,
+            Reg::L => cpu.l = value,
             Reg::HL => {
                 let addr = (((cpu.h as u16) << 8) | (cpu.l as u16)) as usize;
                 cpu.memory[addr] = value;
             },
-            Reg::A => cpu.b = value,
+            Reg::A => cpu.a = value,
             _ => panic!("write-to-reg CALLED ON WRONG REG!")
         }
     }
@@ -254,6 +254,51 @@ impl Emulator {
         }
     }
 
+    fn dcr(cpu: &mut cpu::CPU, reg: Reg) {
+        let result: u8;
+        match reg {
+            Reg::B => {
+                cpu.b = cpu.b.wrapping_sub(1);
+                result = cpu.b;
+            },
+            Reg::C => {
+                cpu.c = cpu.c.wrapping_sub(1);
+                result = cpu.c;
+            },
+            Reg::D => {
+                cpu.d = cpu.d.wrapping_sub(1);
+                result = cpu.d;
+            },
+            Reg::E => {
+                cpu.e = cpu.e.wrapping_sub(1);
+                result = cpu.e;
+            },
+            Reg::H => {
+                cpu.h = cpu.h.wrapping_sub(1);
+                result = cpu.h;
+            },
+            Reg::L => {
+                cpu.l = cpu.l.wrapping_sub(1);
+                result = cpu.l;
+            },
+
+            Reg::HL => {
+                let addr = (((cpu.h as u16) << 8) | (cpu.l as u16)) as usize;
+                cpu.memory[addr] = cpu.memory[addr].wrapping_sub(1);
+                result = cpu.memory[addr];
+            },
+
+            Reg::A => {
+                cpu.a = cpu.a.wrapping_sub(1);
+                result = cpu.a;
+            },
+            _ => {
+                panic!("XRA Called on wrong REG!");
+            }
+        }
+        cpu.flags.set_all_but_carry(result);
+    }
+
 
     //Carry is reset to zero. Flags affected: Carry, Zero, Sign, Parity.
     fn xra(cpu: &mut cpu::CPU, reg: Reg) {
@@ -285,6 +330,22 @@ impl Emulator {
 
     }
 
+    fn dad(cpu: &mut cpu::CPU, reg: Reg) {
+        let result: u32;
+        match reg {
+            Reg::B => result = (((cpu.h as u32) <<8) | (cpu.l as u32)) + (((cpu.b as u32) <<8) | (cpu.c as u32)),
+            Reg::D => result = (((cpu.h as u32) <<8) | (cpu.l as u32)) + (((cpu.d as u32) <<8) | (cpu.e as u32)),
+            Reg::H => result = (((cpu.h as u32) <<8) | (cpu.l as u32)) + (((cpu.h as u32) <<8) | (cpu.l as u32)),
+            Reg::SP => result = (((cpu.h as u32) <<8) | (cpu.l as u32)) + cpu.sp as u32,
+            _ => {
+                panic!("DAD CANNED ON WRONG REG!");
+            }
+        }
+        cpu.flags.set_carry_u32(result);
+        cpu.l = result as u8;
+        cpu.h = (result >> 8) as u8;
+    }
+
     fn jmp(cpu: &mut cpu::CPU) {
         cpu.pc = ((cpu.memory[(cpu.pc+2) as usize]) as u16) << 8 | (cpu.memory[(cpu.pc+1) as usize]) as u16;
         println!("Jumping to: {:04x}",cpu.pc);
@@ -292,41 +353,94 @@ impl Emulator {
         cpu.pc -= 1;
     }
 
+    fn jmpt_to(cpu: &mut cpu::CPU, addr: u16) {
+        cpu.pc = addr;
+        println!("Jumping to: {:04x}",addr);
+        //Decrementing PC as it is incremented at the end of emulate function;
+        cpu.pc -= 1;
+    }
+
     fn call(cpu: &mut cpu::CPU) {
         println!("Instruction CALL called");
-        Self::push_to_stack(cpu, cpu.pc);
+        Self::push_to_stack_addr(cpu, cpu.pc.wrapping_add(3));
         Self::jmp(cpu);
     }
 
-    fn push_to_stack(cpu: &mut cpu::CPU, addr : u16) {
+    fn ret(cpu: &mut cpu::CPU) {
+        println!("Instruction RET called");
+        let addr = Self::pop_from_stack(cpu);
+        Self::jmpt_to(cpu, addr);
+    }
+
+    fn push(cpu: &mut cpu::CPU, reg: Reg) {
+        match reg {
+            Reg::B => {
+                let addr = ((cpu.b as u16) << 8) | cpu.c as u16;
+                Self::push_to_stack_addr(cpu, addr);
+            },
+            Reg::D => {
+                let addr = ((cpu.d as u16) << 8) | cpu.e as u16;
+                Self::push_to_stack_addr(cpu, addr);
+            },
+            Reg::H => {
+                let addr = ((cpu.h as u16) << 8) | cpu.l as u16;
+                Self::push_to_stack_addr(cpu, addr);
+            },
+            _ => {
+                panic!("PUSH called at Wrong REG!");
+            }
+        }
+
+    }
+
+    fn push_to_stack_addr(cpu: &mut cpu::CPU, addr : u16) {
         println!("Pushing to stack addr: {:04x}",addr);
         cpu.memory[cpu.sp as usize - 1] = (addr >> 8) as u8;
         cpu.memory[cpu.sp as usize - 2] = addr as u8;
         cpu.sp = cpu.sp.wrapping_sub(2);
     }
 
+    fn pop_from_stack(cpu: &mut cpu::CPU) -> u16 {
+        let addr: u16;
+        addr = ((cpu.memory[cpu.sp as usize + 1] as u16) << 8) | (cpu.memory[cpu.sp as usize] as u16);
+        cpu.sp = cpu.sp.wrapping_add(2);
+        addr
+    }
+
     pub fn emulate(&self, cpu: &mut cpu::CPU) {
         let opcode: u8 = cpu.memory[cpu.pc as usize];
-        println!("op: 0x{:02x}, pc: {:04x}, sp: {:04x}",opcode,cpu.pc,cpu.sp);
+        println!("op: 0x{:02x}, pc: {:04x}, Z: {}, S: {}, P: {}, CY: {}, AC: {}, sp: {:04x}",opcode,cpu.pc,cpu.flags.z,cpu.flags.s,cpu.flags.p,cpu.flags.cy,cpu.flags.ac,cpu.sp);
         match opcode {
             0x00 => println!(""),
             0x01 => Self::lxi(cpu, Reg::B),
             0x03 => Self::inx(cpu, Reg::B),
+            0x05 => Self::dcr(cpu, Reg::B),
             0x06 => Self::mvi(cpu, Reg::B),
+            0x09 => Self::dad(cpu, Reg::B),
             0x0a => Self::ldax(cpu, Reg::B),
+            0x0d => Self::dcr(cpu, Reg::C),
             0x0e => Self::mvi(cpu, Reg::C),
             0x11 => Self::lxi(cpu, Reg::D),
             0x13 => Self::inx(cpu, Reg::D),
-            0x1a => Self::ldax(cpu, Reg::D),
+            0x15 => Self::dcr(cpu, Reg::D),
             0x16 => Self::mvi(cpu, Reg::D),
+            0x19 => Self::dad(cpu, Reg::D),
+            0x1a => Self::ldax(cpu, Reg::D),
+            0x1d => Self::dcr(cpu, Reg::E),
             0x1e => Self::mvi(cpu, Reg::E),
             0x21 => Self::lxi(cpu, Reg::H),
             0x23 => Self::inx(cpu, Reg::H),
+            0x25 => Self::dcr(cpu, Reg::H),
             0x26 => Self::mvi(cpu, Reg::H),
+            0x29 => Self::dad(cpu, Reg::H),
+            0x2d => Self::dcr(cpu, Reg::L),
             0x2e => Self::mvi(cpu, Reg::L),
             0x31 => Self::lxi(cpu, Reg::SP),
             0x33 => Self::inx(cpu, Reg::SP),
+            0x35 => Self::dcr(cpu, Reg::HL),
             0x36 => Self::mvi(cpu, Reg::HL),
+            0x39 => Self::dad(cpu, Reg::SP),
+            0x3d => Self::dcr(cpu, Reg::A),
             0x3e => Self::mvi(cpu, Reg::A),
 
             //TODO: Check if extract_argument is consistent for all MOVs (or all opcodes)
@@ -352,8 +466,35 @@ impl Emulator {
             0xA0 ..= 0xA7 => Self::ana(cpu, Self::extract_argument(opcode)),
             0xA8 ..= 0xAf => Self::xra(cpu, Self::extract_argument(opcode)),
 
+            0xc2 => {
+                if !cpu.flags.z {
+                    Self::jmp(cpu);
+                } else {
+                    cpu.pc = cpu.pc.wrapping_add(2);
+                }
+            }
             0xc3 => Self::jmp(cpu),
+            0xc5 => Self::push(cpu, Reg::B),
+            0xc9 => Self::ret(cpu),
             0xcd => Self::call(cpu),
+
+            0xd5 => Self::push(cpu, Reg::D),
+
+            0xe5 => Self::push(cpu, Reg::H),
+            0xeb => {
+                let temp1 = cpu.h;
+                let temp2 = cpu.l;
+                cpu.h = cpu.d;
+                cpu.l = cpu.e;
+                cpu.d = temp1;
+                cpu.e = temp2;
+            }
+
+            0xfe => {
+                let operand = cpu.memory[(cpu.pc as usize) + 1];
+                cpu.flags.set_all((cpu.a as u16).wrapping_sub(operand as u16), (cpu.a & 0xf).wrapping_sub(operand & 0xf));
+                cpu.pc = cpu.pc.wrapping_add(1);
+            }
             _ => {
                 panic!("Unimplemented Opcode: 0x{:02x}", opcode);
             }
