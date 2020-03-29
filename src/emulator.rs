@@ -393,6 +393,28 @@ impl Emulator {
 
     }
 
+    fn push_psw(cpu: &mut cpu::CPU) {
+        // cpu.memory[cpu.sp as us -1] = cpu.a;
+        let mut psw:u16 = 0;
+        let s = if cpu.flags.s { 1 } else { 0 };
+        let z = if cpu.flags.z { 1 } else { 0 };
+        let ac = if cpu.flags.ac { 1 } else { 0 };
+        let p = if cpu.flags.p { 1 } else { 0 };
+        let cy = if cpu.flags.cy { 1 } else { 0 };
+        
+		psw |= s << 7;
+		psw |= z << 6;
+		psw |= 0 << 5;
+		psw |= ac << 4;
+		psw |= 0 << 3;
+		psw |= p << 2;
+		psw |= 1 << 1;
+        psw |= cy;
+        psw |= (cpu.a as u16) << 8;
+        println!("Pushing PSW to Stack: {}, cpu.a: {}",psw,cpu.a);
+        Self::push_to_stack_addr(cpu, psw);
+    }
+
     fn push_to_stack_addr(cpu: &mut cpu::CPU, addr : u16) {
         println!("Pushing to stack addr: {:04x}",addr);
         cpu.memory[cpu.sp as usize - 1] = (addr >> 8) as u8;
@@ -405,6 +427,31 @@ impl Emulator {
         addr = ((cpu.memory[cpu.sp as usize + 1] as u16) << 8) | (cpu.memory[cpu.sp as usize] as u16);
         cpu.sp = cpu.sp.wrapping_add(2);
         addr
+    }
+
+    fn pop_psw(cpu: &mut cpu::CPU) {
+        let data = Self::pop_from_stack(cpu);
+        cpu.a = (data >> 8) as u8;
+        cpu.flags.set_psw(data as u8);
+    }
+
+    fn pop(cpu: &mut cpu::CPU, reg: Reg) {
+        let data = Self::pop_from_stack(cpu);
+        match reg {
+            Reg::B => {
+                cpu.c = data as u8;
+                cpu.b = (data >> 8) as u8;
+            },
+            Reg::D => {
+                cpu.e = data as u8;
+                cpu.d = (data >> 8) as u8;
+            },
+            Reg::H => {
+                cpu.l = data as u8;
+                cpu.h = (data >> 8) as u8;
+            },
+            _ => panic!("POP CALLED ON WRONG REG!")
+        }
     }
 
     pub fn emulate(&self, cpu: &mut cpu::CPU) {
@@ -420,6 +467,12 @@ impl Emulator {
             0x0a => Self::ldax(cpu, Reg::B),
             0x0d => Self::dcr(cpu, Reg::C),
             0x0e => Self::mvi(cpu, Reg::C),
+            0x0f => {
+                let bit0: u8 = cpu.a & 1;
+                cpu.a >>= 1;
+                cpu.a |= bit0 << 7;
+                cpu.flags.cy = bit0 != 0;
+            },
             0x11 => Self::lxi(cpu, Reg::D),
             0x13 => Self::inx(cpu, Reg::D),
             0x15 => Self::dcr(cpu, Reg::D),
@@ -466,6 +519,7 @@ impl Emulator {
             0xA0 ..= 0xA7 => Self::ana(cpu, Self::extract_argument(opcode)),
             0xA8 ..= 0xAf => Self::xra(cpu, Self::extract_argument(opcode)),
 
+            0xc1 => Self::pop(cpu, Reg::B),
             0xc2 => {
                 if !cpu.flags.z {
                     Self::jmp(cpu);
@@ -478,8 +532,14 @@ impl Emulator {
             0xc9 => Self::ret(cpu),
             0xcd => Self::call(cpu),
 
+            0xd1 => Self::pop(cpu, Reg::D),
+            0xd3 => {
+                cpu.pc = cpu.pc.wrapping_add(1);
+                println!("SPECIAL D3 CALLED!");
+            },
             0xd5 => Self::push(cpu, Reg::D),
 
+            0xe1 => Self::pop(cpu, Reg::H),
             0xe5 => Self::push(cpu, Reg::H),
             0xeb => {
                 let temp1 = cpu.h;
@@ -490,6 +550,8 @@ impl Emulator {
                 cpu.e = temp2;
             }
 
+            0xf1 => Self::pop_psw(cpu),
+            0xf5 => Self::push_psw(cpu),
             0xfe => {
                 let operand = cpu.memory[(cpu.pc as usize) + 1];
                 cpu.flags.set_all((cpu.a as u16).wrapping_sub(operand as u16), (cpu.a & 0xf).wrapping_sub(operand & 0xf));
