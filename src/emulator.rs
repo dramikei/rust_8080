@@ -5,7 +5,7 @@ pub mod cpu;
 mod register;
 
 pub struct Emulator {
-    cycles8080: [u8;256],
+    pub cycles8080: [u8;256],
 }
 
 impl Emulator {
@@ -454,6 +454,21 @@ impl Emulator {
         }
     }
 
+    fn out(cpu: &mut cpu::CPU) {
+        let port = cpu.pc.wrapping_add(1);
+        let value = cpu.a;
+        match port {
+            2 => cpu.shift_offset = value & 0x7,
+            3 => cpu.out_port3 = value,
+            4 => {
+                cpu.shift0 = cpu.shift1;
+                cpu.shift1 = value;
+            },
+            5 => cpu.out_port5 = value,
+            _ => panic!("CANNOT WRITE TO PORT: {}",port)
+        }
+    }
+
     pub fn emulate(&self, cpu: &mut cpu::CPU) {
         let opcode: u8 = cpu.memory[cpu.pc as usize];
         println!("op: 0x{:02x}, pc: {:04x}, Z: {}, S: {}, P: {}, CY: {}, AC: {}, sp: {:04x}",opcode,cpu.pc,cpu.flags.z,cpu.flags.s,cpu.flags.p,cpu.flags.cy,cpu.flags.ac,cpu.sp);
@@ -493,6 +508,11 @@ impl Emulator {
             0x35 => Self::dcr(cpu, Reg::HL),
             0x36 => Self::mvi(cpu, Reg::HL),
             0x39 => Self::dad(cpu, Reg::SP),
+            0x3a => {
+                let addr = cpu.memory[cpu.pc as usize + 2] as u16 | cpu.memory[cpu.pc as usize + 1] as u16;
+                cpu.a = cpu.memory[addr as usize];
+                cpu.pc = cpu.pc.wrapping_add(2);
+            },
             0x3d => Self::dcr(cpu, Reg::A),
             0x3e => Self::mvi(cpu, Reg::A),
 
@@ -529,18 +549,27 @@ impl Emulator {
             }
             0xc3 => Self::jmp(cpu),
             0xc5 => Self::push(cpu, Reg::B),
+            0xc6 => {
+                let data = cpu.memory[(cpu.pc as usize) + 1];
+                let result = cpu.a as u16 + data as u16;
+                cpu.flags.set_all(result, (cpu.a & 0xf).wrapping_add(data & 0xf));
+                cpu.a = result as u8;
+            },
             0xc9 => Self::ret(cpu),
             0xcd => Self::call(cpu),
 
             0xd1 => Self::pop(cpu, Reg::D),
-            0xd3 => {
-                cpu.pc = cpu.pc.wrapping_add(1);
-                println!("SPECIAL D3 CALLED!");
-            },
+            0xd3 => Self::out(cpu),
             0xd5 => Self::push(cpu, Reg::D),
 
             0xe1 => Self::pop(cpu, Reg::H),
             0xe5 => Self::push(cpu, Reg::H),
+            0xe6 => {
+                let data = cpu.memory[(cpu.pc as usize) + 1];
+                let result = cpu.a as u16 & data as u16;
+                cpu.flags.set_all_but_aux_carry(result);
+                cpu.a = result as u8;
+            },
             0xeb => {
                 let temp1 = cpu.h;
                 let temp2 = cpu.l;
@@ -548,7 +577,7 @@ impl Emulator {
                 cpu.l = cpu.e;
                 cpu.d = temp1;
                 cpu.e = temp2;
-            }
+            },
 
             0xf1 => Self::pop_psw(cpu),
             0xf5 => Self::push_psw(cpu),
