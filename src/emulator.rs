@@ -5,7 +5,7 @@ pub mod cpu;
 mod register;
 
 pub struct Emulator {
-    pub cycles8080: [u8;256],
+    pub cycles8080: [u128;256],
 }
 
 impl Emulator {
@@ -455,7 +455,7 @@ impl Emulator {
     }
 
     fn out(cpu: &mut cpu::CPU) {
-        let port = cpu.pc.wrapping_add(1);
+        let port = cpu.memory[cpu.pc.wrapping_add(1) as usize];
         let value = cpu.a;
         match port {
             2 => cpu.shift_offset = value & 0x7,
@@ -465,11 +465,13 @@ impl Emulator {
                 cpu.shift1 = value;
             },
             5 => cpu.out_port5 = value,
+            6 => {},
             _ => panic!("CANNOT WRITE TO PORT: {}",port)
         }
+        cpu.pc = cpu.pc.wrapping_add(1);
     }
 
-    pub fn emulate(&self, cpu: &mut cpu::CPU) {
+    pub fn emulate(&self, cpu: &mut cpu::CPU) -> u128 {
         let opcode: u8 = cpu.memory[cpu.pc as usize];
         println!("op: 0x{:02x}, pc: {:04x}, Z: {}, S: {}, P: {}, CY: {}, AC: {}, sp: {:04x}",opcode,cpu.pc,cpu.flags.z,cpu.flags.s,cpu.flags.p,cpu.flags.cy,cpu.flags.ac,cpu.sp);
         match opcode {
@@ -504,6 +506,11 @@ impl Emulator {
             0x2d => Self::dcr(cpu, Reg::L),
             0x2e => Self::mvi(cpu, Reg::L),
             0x31 => Self::lxi(cpu, Reg::SP),
+            0x32 => {
+                let addr = cpu.memory[cpu.pc as usize + 2] as u16 | cpu.memory[cpu.pc as usize + 1] as u16;
+                cpu.memory[addr as usize] = cpu.a;
+                cpu.pc = cpu.pc.wrapping_add(2);
+            },
             0x33 => Self::inx(cpu, Reg::SP),
             0x35 => Self::dcr(cpu, Reg::HL),
             0x36 => Self::mvi(cpu, Reg::HL),
@@ -581,6 +588,7 @@ impl Emulator {
 
             0xf1 => Self::pop_psw(cpu),
             0xf5 => Self::push_psw(cpu),
+            0xfb => cpu.interrupts_enabled = true,
             0xfe => {
                 let operand = cpu.memory[(cpu.pc as usize) + 1];
                 cpu.flags.set_all((cpu.a as u16).wrapping_sub(operand as u16), (cpu.a & 0xf).wrapping_sub(operand & 0xf));
@@ -591,5 +599,6 @@ impl Emulator {
             }
         }
         cpu.pc = cpu.pc.wrapping_add(1);
+        return self.cycles8080[(opcode)as usize];
     }
 }
