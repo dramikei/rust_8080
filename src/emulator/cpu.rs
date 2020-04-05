@@ -19,9 +19,6 @@ pub struct CPU {
 
     pub flags: Flags,
     pub interrupts_enabled: bool,
-    pub last_timer: u128,
-    pub next_interrupt: u128,
-    pub which_interrupt: u32,
 
     //LSB of Space Invader's external shift hardware
     pub shift0: u8,
@@ -56,9 +53,6 @@ impl CPU {
         
             flags: Flags::new(),
             interrupts_enabled: false,
-            last_timer: 0,
-            next_interrupt: 0,
-            which_interrupt: 0,
             shift0: 0,
             shift1: 0,
             shift_offset: 0,

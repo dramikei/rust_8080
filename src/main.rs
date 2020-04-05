@@ -6,10 +6,11 @@ use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::event::Event;
 use sdl2::rect::Rect;
-// use std::thread;
+use std::thread;
 mod emulator;
 
 const SCALE_FACTOR: i32 = 2;
+const CYCLES_PER_FRAME:u64 = 4_000_000 / 60; 
 
 
 fn main() {
@@ -32,7 +33,6 @@ fn main() {
 	// let audio_device = audio::initialize(&sdl_context)?;
 
 
-
     'running: loop {
         //TODO: Implement Interrupts
         for event in event_pump.poll_iter() {
@@ -44,68 +44,52 @@ fn main() {
                 _ => {}
             }
         }
-        let instant = Instant::now();
-        if cpu.last_timer == 0 {
-            cpu.last_timer = instant.elapsed().as_micros();
-            // cpu.next_interrupt = cpu.last_timer + 16000;
-            // cpu.which_interrupt = 1;
-        }
-
-        if instant.elapsed().as_micros().wrapping_sub(cpu.last_timer) > 1600 {
-            //Redraw Screen
-            redraw_screen(&mut canvas, &mut cpu);
-        }
-
-        if (cpu.interrupts_enabled) && (instant.elapsed().as_micros() > cpu.next_interrupt) {
-            //Call Interrupts
-        }
-
-        let since_last = instant.elapsed().as_micros().wrapping_sub(cpu.last_timer);
-        let cycles_to_catch:u128 = since_last.wrapping_mul(2);
-        let mut cycles:u128 = 0;
-        
-        while cycles_to_catch > cycles {
-            println!("TO CATCH: {}, DONE: {}",since_last,cycles);
-            for event in event_pump.poll_iter() {
-                match event {
-                    Event::Quit {..} |
-                    Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
-                        break 'running
-                    },
-                    _ => {}
-                }
-            }
-            cycles += emulator.emulate(&mut cpu);
-        }
-        // cpu.last_timer = instant.elapsed().as_micros(); //Seems Wrong
+        half_step(&mut emulator, &mut canvas, &mut cpu, true);
+        half_step(&mut emulator, &mut canvas, &mut cpu, false);
+        thread::sleep(Duration::from_millis(16));
     }
     
 }
 
-fn redraw_screen(canvas: &mut sdl2::render::Canvas<sdl2::video::Window>,cpu: &mut CPU) {
-    let width:u32 = 224;
-    let height:u32 = 256;
-    let mut i:usize = 0x2400;
-    let mut col = 0;
-    while col < width {
-        let mut row = height;
-        while row > 0 {
-            let mut j = 0;
-            while j<8 {
-                let idx = (row-j)*width+col;
-                if (cpu.memory[i] & 1 << j) != 0 {
-                    let x = (idx % width) as i32;
-                    let mut temp = idx as f32/width as f32;
-                    temp = temp.floor();
-                    let y = temp as i32;
-                    draw_pixel(canvas, x, y);
-                }
-                j += 1;
-            }
-            i += 1;
-            row -= 8;
+fn half_step(emulator: &mut Emulator, canvas: &mut sdl2::render::Canvas<sdl2::video::Window>,cpu: &mut CPU, top_half: bool) {
+    let mut cycles_spent:u128 = 0;
+        while cycles_spent < (CYCLES_PER_FRAME / 2) as u128 {
+            let cycles = emulator.emulate(cpu);
+
+            cycles_spent += cycles;
         }
-        col += 1;
+        println!("REDRAWING!");
+        redraw_screen(canvas, cpu, top_half);
+        //emulator.generateInterrupt(if top_half { 1 } else { 2 });
+
+}
+
+fn redraw_screen(canvas: &mut sdl2::render::Canvas<sdl2::video::Window>,cpu: &mut CPU, top_half: bool) {
+    let width:usize = 224;
+    let height:usize = 256;
+    let (start_memory, start_pixel) = if top_half {
+        (0x2400, 0)
+    } else {
+        (0x3200, 0x7000)
+    };
+
+    for offset in 0..0xE00 {
+        let byte = cpu.memory[start_memory + offset];
+
+        for bit in 0..8 {
+            let color: u32 = if byte & (1 << bit) == 0 {
+                0x00_00_00_00
+            } else {
+                0xff_ff_ff_ff
+            };
+
+            let x = (start_pixel + 8 * offset + bit) / height;
+            let y = height - 1 - (start_pixel + 8 * offset + bit) % height;
+
+            if color != 0x0 {
+                draw_pixel(canvas, x as i32, y as i32);
+            }
+        }
     }
 }
 
