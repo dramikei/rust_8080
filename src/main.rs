@@ -9,7 +9,7 @@ use sdl2::rect::Rect;
 use std::thread;
 mod emulator;
 
-const SCALE_FACTOR: i32 = 2;
+const SCALE_FACTOR: i32 = 3;
 const CYCLES_PER_FRAME:u64 = 4_000_000 / 60; 
 
 
@@ -46,6 +46,7 @@ fn main() {
         }
         half_step(&mut emulator, &mut canvas, &mut cpu, true);
         half_step(&mut emulator, &mut canvas, &mut cpu, false);
+        canvas.present();
         thread::sleep(Duration::from_millis(16));
     }
     
@@ -87,20 +88,19 @@ fn redraw_screen(canvas: &mut sdl2::render::Canvas<sdl2::video::Window>,cpu: &mu
             let y = height - 1 - (start_pixel + 8 * offset + bit) % height;
 
             if color != 0x0 {
-                draw_pixel(canvas, x as i32, y as i32);
+                draw_pixel(canvas, x as i32, y as i32, Color::RGB(255, 255, 255));
             }
         }
     }
 }
 
-fn draw_pixel(canvas: &mut sdl2::render::Canvas<sdl2::video::Window>, x: i32, y: i32, ) {
+fn draw_pixel(canvas: &mut sdl2::render::Canvas<sdl2::video::Window>, x: i32, y: i32, color: Color) {
     let width = 224*SCALE_FACTOR;
     let height = 256*SCALE_FACTOR;
     let newx = x*width/224;
     let newy = y*height/256;
     let pixel_width = ((x + 1) * width / 224) - newx;
     let pixel_height = ((y + 1) * height / 256) - newy;
-    canvas.set_draw_color(Color::RGB(255,255,255));
+    canvas.set_draw_color(color);
     canvas.fill_rect(Rect::new(newx, newy, pixel_width as u32, pixel_height as u32));
-    canvas.present();
 }

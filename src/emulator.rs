@@ -561,6 +561,7 @@ impl Emulator {
                 let result = cpu.a as u16 + data as u16;
                 cpu.flags.set_all(result, (cpu.a & 0xf).wrapping_add(data & 0xf));
                 cpu.a = result as u8;
+                cpu.pc = cpu.pc.wrapping_add(1);
             },
             0xc9 => Self::ret(cpu),
             0xcd => Self::call(cpu),
@@ -576,6 +577,7 @@ impl Emulator {
                 let result = cpu.a as u16 & data as u16;
                 cpu.flags.set_all_but_aux_carry(result);
                 cpu.a = result as u8;
+                cpu.pc = cpu.pc.wrapping_add(1);
             },
             0xeb => {
                 let temp1 = cpu.h;
