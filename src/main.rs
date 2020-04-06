@@ -34,7 +34,6 @@ fn main() {
 
 
     'running: loop {
-        //TODO: Implement Interrupts
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit {..} |
@@ -61,7 +60,9 @@ fn half_step(emulator: &mut Emulator, canvas: &mut sdl2::render::Canvas<sdl2::vi
         }
         println!("REDRAWING!");
         redraw_screen(canvas, cpu, top_half);
-        //emulator.generateInterrupt(if top_half { 1 } else { 2 });
+        if cpu.interrupts_enabled {
+            emulator.generate_interrupt(cpu, if top_half { 1 } else { 2 });
+        }
 
 }
 

@@ -48,6 +48,14 @@ impl Emulator {
             }
         }
     }
+
+    pub fn generate_interrupt(&self, cpu: &mut cpu::CPU, interrupt_num: u32) {
+        println!("Pushing to Stack(Interrupt): {:04x}",cpu.pc);
+        Self::push_to_stack_addr(cpu, cpu.pc);
+        cpu.pc = 8*(interrupt_num as u16);
+        println!("PC is at: {:04x}",cpu.pc);
+        cpu.interrupts_enabled = false;
+    }
     fn extract_argument(opcode: u8) -> Reg {
         match opcode & 0x0F {
             0x0 | 0x8 => Reg::B,
@@ -171,7 +179,6 @@ impl Emulator {
 
 
     //SUB function is also used by SBB instruction. (Thats why 3rd parameter of 'carry' exists)
-    //TODO: Check
     //Flags Affected: ALL
     fn sub(cpu: &mut cpu::CPU, from: Reg, carry: bool) {
         let result: u16;
@@ -411,7 +418,7 @@ impl Emulator {
 		psw |= 1 << 1;
         psw |= cy;
         psw |= (cpu.a as u16) << 8;
-        println!("Pushing PSW to Stack: {}, cpu.a: {}",psw,cpu.a);
+        println!("Pushing PSW to Stack: {:04x}, cpu.a: {:x}",psw,cpu.a);
         Self::push_to_stack_addr(cpu, psw);
     }
 
@@ -454,6 +461,21 @@ impl Emulator {
         }
     }
 
+    fn emu_in(cpu: &mut cpu::CPU) {
+        let port = cpu.memory[(cpu.pc as usize) + 1];
+        match port {
+            0 => cpu.a = 0xf,
+            1 => cpu.a = cpu.in_port1,
+            2 => cpu.a = 0,
+            3 => {
+                let v = ((cpu.shift1 as u16) << 8) | (cpu.shift0 as u16);
+                cpu.a = (v >> (8-(cpu.shift_offset as u16))) as u8;
+            }
+            _ => cpu.a = 0
+        }
+        cpu.pc = cpu.pc.wrapping_add(1);
+    }
+
     fn out(cpu: &mut cpu::CPU) {
         let port = cpu.memory[cpu.pc.wrapping_add(1) as usize];
         let value = cpu.a;
@@ -473,7 +495,7 @@ impl Emulator {
 
     pub fn emulate(&self, cpu: &mut cpu::CPU) -> u128 {
         let opcode: u8 = cpu.memory[cpu.pc as usize];
-        println!("op: 0x{:02x}, pc: {:04x}, Z: {}, S: {}, P: {}, CY: {}, AC: {}, sp: {:04x}",opcode,cpu.pc,cpu.flags.z,cpu.flags.s,cpu.flags.p,cpu.flags.cy,cpu.flags.ac,cpu.sp);
+        println!("op: 0x{:02x}, pc: {:04x}, Z: {}, S: {}, P: {}, CY: {}, AC: {}, sp: {:04x}, interrupt: {}",opcode,cpu.pc,cpu.flags.z,cpu.flags.s,cpu.flags.p,cpu.flags.cy,cpu.flags.ac,cpu.sp,cpu.interrupts_enabled);
         match opcode {
             0x00 => println!(""),
             0x01 => Self::lxi(cpu, Reg::B),
@@ -507,23 +529,24 @@ impl Emulator {
             0x2e => Self::mvi(cpu, Reg::L),
             0x31 => Self::lxi(cpu, Reg::SP),
             0x32 => {
-                let addr = cpu.memory[cpu.pc as usize + 2] as u16 | cpu.memory[cpu.pc as usize + 1] as u16;
+                let addr = ((cpu.memory[(cpu.pc as usize) + 2] as u16) << 8) | cpu.memory[(cpu.pc as usize) + 1] as u16;
                 cpu.memory[addr as usize] = cpu.a;
                 cpu.pc = cpu.pc.wrapping_add(2);
             },
             0x33 => Self::inx(cpu, Reg::SP),
             0x35 => Self::dcr(cpu, Reg::HL),
             0x36 => Self::mvi(cpu, Reg::HL),
+            0x37 => cpu.flags.cy = true,
             0x39 => Self::dad(cpu, Reg::SP),
             0x3a => {
-                let addr = cpu.memory[cpu.pc as usize + 2] as u16 | cpu.memory[cpu.pc as usize + 1] as u16;
+                let addr = ((cpu.memory[(cpu.pc as usize) + 2] as u16) << 8) | cpu.memory[(cpu.pc as usize) + 1] as u16;
+                println!("0x3a: {:x}, addr: {:04x}",cpu.memory[addr as usize],addr);
                 cpu.a = cpu.memory[addr as usize];
                 cpu.pc = cpu.pc.wrapping_add(2);
             },
             0x3d => Self::dcr(cpu, Reg::A),
             0x3e => Self::mvi(cpu, Reg::A),
 
-            //TODO: Check if extract_argument is consistent for all MOVs (or all opcodes)
             0x40 ..= 0x47 => Self::mov(cpu, Reg::B, Self::extract_argument(opcode)),
             0x48 ..= 0x4f => Self::mov(cpu, Reg::C, Self::extract_argument(opcode)),
             0x50 ..= 0x57 => Self::mov(cpu, Reg::D, Self::extract_argument(opcode)),
@@ -563,12 +586,18 @@ impl Emulator {
                 cpu.a = result as u8;
                 cpu.pc = cpu.pc.wrapping_add(1);
             },
+            0xc8 => if cpu.flags.z { Self::ret(cpu) },
             0xc9 => Self::ret(cpu),
+            0xca => if cpu.flags.z { Self::jmp(cpu) } else { cpu.pc = cpu.pc.wrapping_add(2) }
             0xcd => Self::call(cpu),
 
             0xd1 => Self::pop(cpu, Reg::D),
+            0xd2 => if !cpu.flags.cy { Self::jmp(cpu) } else { cpu.pc = cpu.pc.wrapping_add(2) }
             0xd3 => Self::out(cpu),
             0xd5 => Self::push(cpu, Reg::D),
+            0xd8 => if cpu.flags.cy { Self::ret(cpu) },
+            0xda => if cpu.flags.cy { Self::jmp(cpu) } else { cpu.pc = cpu.pc.wrapping_add(2) },
+            0xdb => Self::emu_in(cpu),
 
             0xe1 => Self::pop(cpu, Reg::H),
             0xe5 => Self::push(cpu, Reg::H),
