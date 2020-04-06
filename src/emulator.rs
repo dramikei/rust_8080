@@ -355,14 +355,14 @@ impl Emulator {
 
     fn jmp(cpu: &mut cpu::CPU) {
         cpu.pc = ((cpu.memory[(cpu.pc+2) as usize]) as u16) << 8 | (cpu.memory[(cpu.pc+1) as usize]) as u16;
-        println!("Jumping to: {:04x}",cpu.pc);
+        // println!("Jumping to: {:04x}",cpu.pc);
         //Decrementing PC as it is incremented at the end of emulate function;
         cpu.pc -= 1;
     }
 
     fn jmpt_to(cpu: &mut cpu::CPU, addr: u16) {
         cpu.pc = addr;
-        println!("Jumping to: {:04x}",addr);
+        // println!("Jumping to: {:04x}",addr);
         //Decrementing PC as it is incremented at the end of emulate function;
         cpu.pc -= 1;
     }
@@ -495,7 +495,7 @@ impl Emulator {
 
     pub fn emulate(&self, cpu: &mut cpu::CPU) -> u128 {
         let opcode: u8 = cpu.memory[cpu.pc as usize];
-        println!("op: 0x{:02x}, pc: {:04x}, Z: {}, S: {}, P: {}, CY: {}, AC: {}, sp: {:04x}, interrupt: {}",opcode,cpu.pc,cpu.flags.z,cpu.flags.s,cpu.flags.p,cpu.flags.cy,cpu.flags.ac,cpu.sp,cpu.interrupts_enabled);
+        // println!("op: 0x{:02x}, pc: {:04x}, Z: {}, S: {}, P: {}, CY: {}, AC: {}, sp: {:04x}, interrupt: {}",opcode,cpu.pc,cpu.flags.z,cpu.flags.s,cpu.flags.p,cpu.flags.cy,cpu.flags.ac,cpu.sp,cpu.interrupts_enabled);
         match opcode {
             0x00 => println!(""),
             0x01 => Self::lxi(cpu, Reg::B),
@@ -540,7 +540,6 @@ impl Emulator {
             0x39 => Self::dad(cpu, Reg::SP),
             0x3a => {
                 let addr = ((cpu.memory[(cpu.pc as usize) + 2] as u16) << 8) | cpu.memory[(cpu.pc as usize) + 1] as u16;
-                println!("0x3a: {:x}, addr: {:04x}",cpu.memory[addr as usize],addr);
                 cpu.a = cpu.memory[addr as usize];
                 cpu.pc = cpu.pc.wrapping_add(2);
             },

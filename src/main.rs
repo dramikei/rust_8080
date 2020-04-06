@@ -46,7 +46,7 @@ fn main() {
         half_step(&mut emulator, &mut canvas, &mut cpu, true);
         half_step(&mut emulator, &mut canvas, &mut cpu, false);
         canvas.present();
-        thread::sleep(Duration::from_millis(16));
+        // thread::sleep(Duration::from_millis(16));
     }
     
 }
@@ -89,19 +89,30 @@ fn redraw_screen(canvas: &mut sdl2::render::Canvas<sdl2::video::Window>,cpu: &mu
             let y = height - 1 - (start_pixel + 8 * offset + bit) % height;
 
             if color != 0x0 {
-                draw_pixel(canvas, x as i32, y as i32, Color::RGB(255, 255, 255));
+                draw_pixel(canvas, x as i32, y as i32);
             }
         }
     }
 }
 
-fn draw_pixel(canvas: &mut sdl2::render::Canvas<sdl2::video::Window>, x: i32, y: i32, color: Color) {
+fn draw_pixel(canvas: &mut sdl2::render::Canvas<sdl2::video::Window>, x: i32, y: i32) {
     let width = 224*SCALE_FACTOR;
     let height = 256*SCALE_FACTOR;
+
+    if (y > 32) & (y <= 64) {
+        canvas.set_draw_color(Color::RGB(255, 0, 0));
+    } else if y > 184 && y <= 240 && x >= 0 && x <= 223 {
+        canvas.set_draw_color(Color::RGB(0, 255, 0));
+    } else if ((y > 238) & (y <= 256) & (x >= 16)) && (x < 132) {
+        canvas.set_draw_color(Color::RGB(0, 255, 0));
+    } else {
+        canvas.set_draw_color(Color::RGB(255, 255, 255));
+    }
+
+
     let newx = x*width/224;
     let newy = y*height/256;
     let pixel_width = ((x + 1) * width / 224) - newx;
     let pixel_height = ((y + 1) * height / 256) - newy;
-    canvas.set_draw_color(color);
     canvas.fill_rect(Rect::new(newx, newy, pixel_width as u32, pixel_height as u32));
 }
