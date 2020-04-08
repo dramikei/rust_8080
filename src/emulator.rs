@@ -234,6 +234,50 @@ impl Emulator {
 
     }
 
+    //Add support for Aux Carry
+    fn inr(cpu: &mut cpu::CPU, reg:Reg) {
+        let result: u16;
+        match reg {
+            Reg::B => {
+                result = cpu.b.wrapping_add(1) as u16;
+                cpu.b = result as u8;
+            },
+            Reg::C => {
+                result = cpu.c.wrapping_add(1) as u16;
+                cpu.c = result as u8;
+            },
+            Reg::D => {
+                result = cpu.d.wrapping_add(1) as u16;
+                cpu.d = result as u8;
+            },
+            Reg::E => {
+                result = cpu.e.wrapping_add(1) as u16;
+                cpu.e = result as u8;
+            },
+            Reg::H => {
+                result = cpu.h.wrapping_add(1) as u16;
+                cpu.h = result as u8;
+            },
+            Reg::L => {
+                result = cpu.l.wrapping_add(1) as u16;
+                cpu.l = result as u8;
+            },
+
+            Reg::HL => {
+                let addr = (((cpu.h as u16) << 8) | (cpu.l as u16)) as usize;
+                result = cpu.memory[addr].wrapping_add(1) as u16;
+                cpu.memory[addr] = result as u8;
+            },
+
+            Reg::A => {
+                result = cpu.a.wrapping_add(1) as u16;
+                cpu.a = result as u8;
+            },
+            _ => panic!("INR CALLED ON WRONG REG!")
+        }
+        cpu.flags.set_all_but_aux_carry(result);
+    }
+
     fn inx(cpu: &mut cpu::CPU, reg: Reg) {
         match reg {
             Reg::B => {
@@ -530,6 +574,7 @@ impl Emulator {
             0x00 => println!(""),
             0x01 => Self::lxi(cpu, Reg::B),
             0x03 => Self::inx(cpu, Reg::B),
+            0x04 => Self::inr(cpu, Reg::B),
             0x05 => Self::dcr(cpu, Reg::B),
             0x06 => Self::mvi(cpu, Reg::B),
             0x07 => {
@@ -540,6 +585,7 @@ impl Emulator {
             }
             0x09 => Self::dad(cpu, Reg::B),
             0x0a => Self::ldax(cpu, Reg::B),
+            0x0c => Self::inr(cpu, Reg::C),
             0x0d => Self::dcr(cpu, Reg::C),
             0x0e => Self::mvi(cpu, Reg::C),
             0x0f => {
@@ -550,10 +596,12 @@ impl Emulator {
             },
             0x11 => Self::lxi(cpu, Reg::D),
             0x13 => Self::inx(cpu, Reg::D),
+            0x14 => Self::inr(cpu, Reg::D),
             0x15 => Self::dcr(cpu, Reg::D),
             0x16 => Self::mvi(cpu, Reg::D),
             0x19 => Self::dad(cpu, Reg::D),
             0x1a => Self::ldax(cpu, Reg::D),
+            0x1c => Self::inr(cpu, Reg::E),
             0x1d => Self::dcr(cpu, Reg::E),
             0x1e => Self::mvi(cpu, Reg::E),
             0x1f => {
@@ -564,6 +612,7 @@ impl Emulator {
             }
             0x21 => Self::lxi(cpu, Reg::H),
             0x23 => Self::inx(cpu, Reg::H),
+            0x24 => Self::inr(cpu, Reg::H),
             0x25 => Self::dcr(cpu, Reg::H),
             0x26 => Self::mvi(cpu, Reg::H),
             0x29 => Self::dad(cpu, Reg::H),
@@ -572,7 +621,8 @@ impl Emulator {
                 cpu.l = cpu.memory[addr as usize];
                 cpu.h = cpu.memory[addr as usize + 1];
                 cpu.pc = cpu.pc.wrapping_add(2);
-            }
+            },
+            0x2c => Self::inr(cpu, Reg::L),
             0x2d => Self::dcr(cpu, Reg::L),
             0x2e => Self::mvi(cpu, Reg::L),
             0x31 => Self::lxi(cpu, Reg::SP),
@@ -582,6 +632,7 @@ impl Emulator {
                 cpu.pc = cpu.pc.wrapping_add(2);
             },
             0x33 => Self::inx(cpu, Reg::SP),
+            0x34 => Self::inr(cpu, Reg::HL),
             0x35 => Self::dcr(cpu, Reg::HL),
             0x36 => Self::mvi(cpu, Reg::HL),
             0x37 => cpu.flags.cy = true,
@@ -591,6 +642,7 @@ impl Emulator {
                 cpu.a = cpu.memory[addr as usize];
                 cpu.pc = cpu.pc.wrapping_add(2);
             },
+            0x3c => Self::inr(cpu, Reg::A),
             0x3d => Self::dcr(cpu, Reg::A),
             0x3e => Self::mvi(cpu, Reg::A),
 
