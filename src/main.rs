@@ -43,6 +43,9 @@ fn main() {
                 _ => {}
             }
         }
+        //Clearing screen before redraw.
+        canvas.set_draw_color(Color::RGB(0, 0, 0));
+        canvas.clear();
         half_step(&mut emulator, &mut canvas, &mut cpu, true);
         half_step(&mut emulator, &mut canvas, &mut cpu, false);
         canvas.present();

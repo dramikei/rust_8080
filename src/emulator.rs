@@ -305,6 +305,33 @@ impl Emulator {
         }
     }
 
+    fn dcx(cpu: &mut cpu::CPU, reg: Reg) {
+        match reg {
+            Reg::B => {
+                cpu.c = cpu.c.wrapping_sub(1);
+                if cpu.c == 0 {
+                    cpu.b = cpu.b.wrapping_sub(1);
+                }
+            },
+            Reg::D => {
+                cpu.e = cpu.e.wrapping_sub(1);
+                if cpu.e == 0 {
+                    cpu.d = cpu.d.wrapping_sub(1);
+                }
+            },
+            Reg::H => {
+                cpu.l = cpu.l.wrapping_sub(1);
+                if cpu.l == 0 {
+                    cpu.h = cpu.h.wrapping_sub(1);
+                }
+            },
+            Reg::SP => cpu.sp = cpu.sp.wrapping_sub(1),
+            _ => {
+                panic!("DCX CALLED ON WRONG REG!");
+            }
+        }
+    }
+
     fn dcr(cpu: &mut cpu::CPU, reg: Reg) {
         let result: u8;
         match reg {
@@ -569,7 +596,7 @@ impl Emulator {
 
     pub fn emulate(&self, cpu: &mut cpu::CPU) -> u128 {
         let opcode: u8 = cpu.memory[cpu.pc as usize];
-        // println!("op: 0x{:02x}, pc: {:04x}, Z: {}, S: {}, P: {}, CY: {}, AC: {}, sp: {:04x}, interrupt: {}",opcode,cpu.pc,cpu.flags.z,cpu.flags.s,cpu.flags.p,cpu.flags.cy,cpu.flags.ac,cpu.sp,cpu.interrupts_enabled);
+        println!("op: 0x{:02x}, pc: {:04x}, Z: {}, S: {}, P: {}, CY: {}, AC: {}, sp: {:04x}, interrupt: {}",opcode,cpu.pc,cpu.flags.z,cpu.flags.s,cpu.flags.p,cpu.flags.cy,cpu.flags.ac,cpu.sp,cpu.interrupts_enabled);
         match opcode {
             0x00 => println!(""),
             0x01 => Self::lxi(cpu, Reg::B),
@@ -585,6 +612,7 @@ impl Emulator {
             }
             0x09 => Self::dad(cpu, Reg::B),
             0x0a => Self::ldax(cpu, Reg::B),
+            0x0b => Self::dcx(cpu, Reg::B),
             0x0c => Self::inr(cpu, Reg::C),
             0x0d => Self::dcr(cpu, Reg::C),
             0x0e => Self::mvi(cpu, Reg::C),
@@ -601,6 +629,7 @@ impl Emulator {
             0x16 => Self::mvi(cpu, Reg::D),
             0x19 => Self::dad(cpu, Reg::D),
             0x1a => Self::ldax(cpu, Reg::D),
+            0x1b => Self::dcx(cpu, Reg::D),
             0x1c => Self::inr(cpu, Reg::E),
             0x1d => Self::dcr(cpu, Reg::E),
             0x1e => Self::mvi(cpu, Reg::E),
@@ -622,9 +651,11 @@ impl Emulator {
                 cpu.h = cpu.memory[addr as usize + 1];
                 cpu.pc = cpu.pc.wrapping_add(2);
             },
+            0x2b => Self::dcx(cpu, Reg::H),
             0x2c => Self::inr(cpu, Reg::L),
             0x2d => Self::dcr(cpu, Reg::L),
             0x2e => Self::mvi(cpu, Reg::L),
+            0x2f => cpu.a = !cpu.a,
             0x31 => Self::lxi(cpu, Reg::SP),
             0x32 => {
                 let addr = ((cpu.memory[(cpu.pc as usize) + 2] as u16) << 8) | cpu.memory[(cpu.pc as usize) + 1] as u16;
@@ -642,9 +673,11 @@ impl Emulator {
                 cpu.a = cpu.memory[addr as usize];
                 cpu.pc = cpu.pc.wrapping_add(2);
             },
+            0x3b => Self::dcx(cpu, Reg::SP),
             0x3c => Self::inr(cpu, Reg::A),
             0x3d => Self::dcr(cpu, Reg::A),
             0x3e => Self::mvi(cpu, Reg::A),
+            0x3f => cpu.flags.cy = !cpu.flags.cy,
 
             0x40 ..= 0x47 => Self::mov(cpu, Reg::B, Self::extract_argument(opcode)),
             0x48 ..= 0x4f => Self::mov(cpu, Reg::C, Self::extract_argument(opcode)),
@@ -705,6 +738,13 @@ impl Emulator {
             0xdb => Self::emu_in(cpu),
 
             0xe1 => Self::pop(cpu, Reg::H),
+            0xe3 => {
+                let temp:u16 = ((cpu.h as u16) << 8) | (cpu.l as u16);
+                let temp2: u16 = Self::pop_from_stack(cpu);
+                cpu.h = (temp2 >> 8) as u8;
+                cpu.l = temp2 as u8;
+                Self::push_to_stack_addr(cpu, temp);
+            },
             0xe5 => Self::push(cpu, Reg::H),
             0xe6 => {
                 let data = cpu.memory[(cpu.pc as usize) + 1];
@@ -713,6 +753,10 @@ impl Emulator {
                 cpu.a = result as u8;
                 cpu.pc = cpu.pc.wrapping_add(1);
             },
+            0xe9 => {
+                let addr: u16 = (cpu.h as u16) << 8 | (cpu.l as u16);
+                Self::jmpt_to(cpu, addr);
+            }
             0xeb => {
                 let temp1 = cpu.h;
                 let temp2 = cpu.l;
@@ -729,6 +773,7 @@ impl Emulator {
                 cpu.flags.set_all_but_aux_carry(cpu.a as u16);
                 cpu.pc = cpu.pc.wrapping_add(1);
             },
+            0xfa => if cpu.flags.s { Self::jmp(cpu) } else { cpu.pc = cpu.pc.wrapping_add(2) },
             0xfb => cpu.interrupts_enabled = true,
             0xfe => {
                 let operand = cpu.memory[(cpu.pc as usize) + 1];
@@ -736,6 +781,8 @@ impl Emulator {
                 cpu.pc = cpu.pc.wrapping_add(1);
             }
             _ => {
+                //To see changes in screen before panic.
+                std::thread::sleep(std::time::Duration::from_secs(10));
                 panic!("Unimplemented Opcode: 0x{:02x}", opcode);
             }
         }
