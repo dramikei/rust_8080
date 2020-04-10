@@ -40,6 +40,17 @@ fn main() {
                 Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     break 'running
                 },
+                Event::KeyDown {keycode: Some(Keycode::Z), .. } => cpu.in_port1 |= 0x20,
+                Event::KeyDown {keycode: Some(Keycode::X), .. } => cpu.in_port1 |= 0x40,
+                Event::KeyDown {keycode: Some(Keycode::C), .. } => cpu.in_port1 |= 0x1,
+                Event::KeyDown {keycode: Some(Keycode::Num1), .. } => cpu.in_port1 |= 0x04,
+                Event::KeyDown {keycode: Some(Keycode::Period), .. } => cpu.in_port1 |= 0x10,
+
+                Event::KeyUp {keycode: Some(Keycode::Z), .. } => cpu.in_port1 &= !0x20,
+                Event::KeyUp {keycode: Some(Keycode::X), .. } => cpu.in_port1 &= !0x40,
+                Event::KeyUp {keycode: Some(Keycode::C), .. } => cpu.in_port1 &= !0x1,
+                Event::KeyUp {keycode: Some(Keycode::Num1), .. } => cpu.in_port1 &= !0x04,
+                Event::KeyUp {keycode: Some(Keycode::Period), .. } => cpu.in_port1 &= !0x10,
                 _ => {}
             }
         }
