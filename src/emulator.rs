@@ -454,6 +454,25 @@ impl Emulator {
         cpu.h = (result >> 8) as u8;
     }
 
+    fn cmp(cpu: &mut cpu::CPU, reg: Reg) {
+        let operand: u8;
+        match reg {
+            Reg::B => operand = cpu.b,
+            Reg::C => operand = cpu.c,
+            Reg::D => operand = cpu.d,
+            Reg::E => operand = cpu.e,
+            Reg::H => operand = cpu.h,
+            Reg::L => operand = cpu.l,
+            Reg::HL => {
+                let addr = (((cpu.h as u16) << 8) | (cpu.l as u16)) as usize;
+                operand = cpu.memory[addr];
+            },
+            Reg::A => operand = cpu.a,
+            _ => panic!("CMP CALLED ON WRONG REG!")
+        }
+        cpu.flags.set_all((cpu.a as u16).wrapping_sub(operand as u16), (cpu.a & 0xf).wrapping_sub(operand & 0xf));
+    }
+
     fn jmp(cpu: &mut cpu::CPU) {
         cpu.pc = ((cpu.memory[(cpu.pc+2) as usize]) as u16) << 8 | (cpu.memory[(cpu.pc+1) as usize]) as u16;
         // println!("Jumping to: {:04x}",cpu.pc);
@@ -596,7 +615,7 @@ impl Emulator {
 
     pub fn emulate(&self, cpu: &mut cpu::CPU) -> u128 {
         let opcode: u8 = cpu.memory[cpu.pc as usize];
-        println!("op: 0x{:02x}, pc: {:04x}, Z: {}, S: {}, P: {}, CY: {}, AC: {}, sp: {:04x}, interrupt: {}",opcode,cpu.pc,cpu.flags.z,cpu.flags.s,cpu.flags.p,cpu.flags.cy,cpu.flags.ac,cpu.sp,cpu.interrupts_enabled);
+        // println!("op: 0x{:02x}, pc: {:04x}, Z: {}, S: {}, P: {}, CY: {}, AC: {}, sp: {:04x}, interrupt: {}",opcode,cpu.pc,cpu.flags.z,cpu.flags.s,cpu.flags.p,cpu.flags.cy,cpu.flags.ac,cpu.sp,cpu.interrupts_enabled);
         match opcode {
             0x00 => println!(""),
             0x01 => Self::lxi(cpu, Reg::B),
@@ -640,6 +659,12 @@ impl Emulator {
                 cpu.flags.cy = bit0 != 0;
             }
             0x21 => Self::lxi(cpu, Reg::H),
+            0x22 => {
+                let addr = ((cpu.memory[(cpu.pc as usize) + 2] as u16) << 8) | cpu.memory[(cpu.pc as usize) + 1] as u16;
+                cpu.memory[addr as usize] = cpu.l;
+                cpu.memory[(addr as usize) + 1] = cpu.h;
+                cpu.pc = cpu.pc.wrapping_add(2);
+            },
             0x23 => Self::inx(cpu, Reg::H),
             0x24 => Self::inr(cpu, Reg::H),
             0x25 => Self::dcr(cpu, Reg::H),
@@ -701,7 +726,7 @@ impl Emulator {
             0xA0 ..= 0xA7 => Self::ana(cpu, Self::extract_argument(opcode)),
             0xA8 ..= 0xAf => Self::xra(cpu, Self::extract_argument(opcode)),
             0xb0 ..= 0xb7 => Self::ora(cpu, Self::extract_argument(opcode)),
-
+            0xb8 ..= 0xbf => Self::cmp(cpu, Self::extract_argument(opcode)), 
             0xc0 => if !cpu.flags.z { Self::ret(cpu) },
             0xc1 => Self::pop(cpu, Reg::B),
             0xc2 => if !cpu.flags.z { Self::jmp(cpu) } else { cpu.pc = cpu.pc.wrapping_add(2) },
@@ -723,8 +748,9 @@ impl Emulator {
 
             0xd0 => if !cpu.flags.cy { Self::ret(cpu) },
             0xd1 => Self::pop(cpu, Reg::D),
-            0xd2 => if !cpu.flags.cy { Self::jmp(cpu) } else { cpu.pc = cpu.pc.wrapping_add(2) }
+            0xd2 => if !cpu.flags.cy { Self::jmp(cpu) } else { cpu.pc = cpu.pc.wrapping_add(2) },
             0xd3 => Self::out(cpu),
+            0xd4 => if !cpu.flags.cy { Self::call(cpu) } else { cpu.pc = cpu.pc.wrapping_add(2) },
             0xd5 => Self::push(cpu, Reg::D),
             0xd6 => {
                 let data = cpu.memory[(cpu.pc as usize) + 1];
@@ -736,6 +762,15 @@ impl Emulator {
             0xd8 => if cpu.flags.cy { Self::ret(cpu) },
             0xda => if cpu.flags.cy { Self::jmp(cpu) } else { cpu.pc = cpu.pc.wrapping_add(2) },
             0xdb => Self::emu_in(cpu),
+            0xdc => if cpu.flags.cy { Self::call(cpu) } else { cpu.pc = cpu.pc.wrapping_add(2) },
+            0xde => {
+                let result: u16;
+                let operand: u8 = cpu.memory[(cpu.pc as usize) + 1];
+                result = (cpu.a as u16).wrapping_sub(operand as u16).wrapping_sub(cpu.flags.cy as u16);
+                cpu.flags.set_all(result, (cpu.a & 0xf).wrapping_sub(operand.wrapping_sub(cpu.flags.cy as u8) & 0xf));
+                cpu.a = result as u8;
+                cpu.pc = cpu.pc.wrapping_add(1);
+            }
 
             0xe1 => Self::pop(cpu, Reg::H),
             0xe3 => {
@@ -766,7 +801,10 @@ impl Emulator {
                 cpu.e = temp2;
             },
 
+            0xf0 => if cpu.flags.p { Self::ret(cpu) },
             0xf1 => Self::pop_psw(cpu),
+            0xf2 => if cpu.flags.p { Self::jmp(cpu) } else { cpu.pc = cpu.pc.wrapping_add(2) },
+            0xf3 => cpu.interrupts_enabled = false,
             0xf5 => Self::push_psw(cpu),
             0xf6 => {
                 cpu.a |= cpu.memory[cpu.pc as usize + 1];
