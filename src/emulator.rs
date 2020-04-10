@@ -151,6 +151,24 @@ impl Emulator {
         }
     }
 
+    fn stax(cpu: &mut cpu::CPU, from: Reg) {
+        match from {
+            Reg::B => {
+                let addr = ((cpu.b as u16) << 8) | cpu.c as u16;
+                cpu.memory[addr as usize] = cpu.a;
+            },
+            Reg::D => {
+                let addr = ((cpu.d as u16) << 8) | cpu.e as u16;
+                cpu.memory[addr as usize] = cpu.a;
+            },
+            _ => {
+                panic!("STAX CALLED ON WRONG REG!");
+            }
+        }
+    }
+
+
+
     //ADD function is also used by ADC instruction (ADD with Carry). (Thats why 3rd parameter of 'carry' exists)
     //Flags Affected: All
     fn add(cpu: &mut cpu::CPU, from: Reg, carry: bool) {
@@ -586,7 +604,7 @@ impl Emulator {
         match port {
             0 => cpu.a = 0xf,
             1 => cpu.a = cpu.in_port1,
-            2 => cpu.a = 0,
+            2 => cpu.a = cpu.in_port2,
             3 => {
                 let v = ((cpu.shift1 as u16) << 8) | (cpu.shift0 as u16);
                 cpu.a = (v >> (8-(cpu.shift_offset as u16))) as u8;
@@ -613,12 +631,28 @@ impl Emulator {
         cpu.pc = cpu.pc.wrapping_add(1);
     }
 
+    fn daa(cpu: &mut cpu::CPU) {
+        let mut result = cpu.a as u16;
+        let lsb = result & 0xf;
+        if cpu.flags.ac || lsb > 9 {
+            result += 6;
+            if result & 0xf < lsb { cpu.flags.ac = true }
+        }
+        let lsb = result & 0xf;
+        let mut msb = (result >> 4) & 0xf;
+        if cpu.flags.cy || msb > 9 { msb += 6 }
+        let result = (msb << 4) | lsb;
+        cpu.flags.set_all_but_aux_carry(result);
+        cpu.a = result as u8;
+    }
+
     pub fn emulate(&self, cpu: &mut cpu::CPU) -> u128 {
         let opcode: u8 = cpu.memory[cpu.pc as usize];
         // println!("op: 0x{:02x}, pc: {:04x}, Z: {}, S: {}, P: {}, CY: {}, AC: {}, sp: {:04x}, interrupt: {}",opcode,cpu.pc,cpu.flags.z,cpu.flags.s,cpu.flags.p,cpu.flags.cy,cpu.flags.ac,cpu.sp,cpu.interrupts_enabled);
         match opcode {
             0x00 => println!(""),
             0x01 => Self::lxi(cpu, Reg::B),
+            0x02 => Self::stax(cpu, Reg::B),
             0x03 => Self::inx(cpu, Reg::B),
             0x04 => Self::inr(cpu, Reg::B),
             0x05 => Self::dcr(cpu, Reg::B),
@@ -642,6 +676,7 @@ impl Emulator {
                 cpu.flags.cy = bit0 != 0;
             },
             0x11 => Self::lxi(cpu, Reg::D),
+            0x12 => Self::stax(cpu, Reg::D),
             0x13 => Self::inx(cpu, Reg::D),
             0x14 => Self::inr(cpu, Reg::D),
             0x15 => Self::dcr(cpu, Reg::D),
@@ -669,6 +704,7 @@ impl Emulator {
             0x24 => Self::inr(cpu, Reg::H),
             0x25 => Self::dcr(cpu, Reg::H),
             0x26 => Self::mvi(cpu, Reg::H),
+            0x27 => Self::daa(cpu),
             0x29 => Self::dad(cpu, Reg::H),
             0x2a => {
                 let addr = ((cpu.memory[(cpu.pc as usize) + 2] as u16) << 8) | cpu.memory[(cpu.pc as usize) + 1] as u16;

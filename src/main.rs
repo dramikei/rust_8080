@@ -40,17 +40,33 @@ fn main() {
                 Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     break 'running
                 },
-                Event::KeyDown {keycode: Some(Keycode::Z), .. } => cpu.in_port1 |= 0x20,
-                Event::KeyDown {keycode: Some(Keycode::X), .. } => cpu.in_port1 |= 0x40,
-                Event::KeyDown {keycode: Some(Keycode::C), .. } => cpu.in_port1 |= 0x1,
-                Event::KeyDown {keycode: Some(Keycode::Num1), .. } => cpu.in_port1 |= 0x04,
-                Event::KeyDown {keycode: Some(Keycode::Period), .. } => cpu.in_port1 |= 0x10,
+                Event::KeyDown {keycode: Some(Keycode::A), .. } => cpu.in_port1 |= 0x20,
+                Event::KeyDown {keycode: Some(Keycode::D), .. } => cpu.in_port1 |= 0x40,
+                Event::KeyDown {keycode: Some(Keycode::W), .. } => cpu.in_port1 |= 0x10,
 
-                Event::KeyUp {keycode: Some(Keycode::Z), .. } => cpu.in_port1 &= !0x20,
-                Event::KeyUp {keycode: Some(Keycode::X), .. } => cpu.in_port1 &= !0x40,
-                Event::KeyUp {keycode: Some(Keycode::C), .. } => cpu.in_port1 &= !0x1,
+                Event::KeyDown {keycode: Some(Keycode::J), .. } => cpu.in_port2 |= 0x20,
+                Event::KeyDown {keycode: Some(Keycode::L), .. } => cpu.in_port2 |= 0x40,
+                Event::KeyDown {keycode: Some(Keycode::I), .. } => cpu.in_port2 |= 0x10,
+
+                Event::KeyDown {keycode: Some(Keycode::Num1), .. } => cpu.in_port1 |= 0x04,
+                Event::KeyDown {keycode: Some(Keycode::Num2), .. } => cpu.in_port1 |= 0x02,
+
+                Event::KeyDown {keycode: Some(Keycode::C), .. } => cpu.in_port1 |= 0x1,
+                
+                
+
+                Event::KeyUp {keycode: Some(Keycode::A), .. } => cpu.in_port1 &= !0x20,
+                Event::KeyUp {keycode: Some(Keycode::D), .. } => cpu.in_port1 &= !0x40,
+                Event::KeyUp {keycode: Some(Keycode::W), .. } => cpu.in_port1 &= !0x10,
+
+                Event::KeyUp {keycode: Some(Keycode::J), .. } => cpu.in_port2 &= !0x20,
+                Event::KeyUp {keycode: Some(Keycode::L), .. } => cpu.in_port2 &= !0x40,
+                Event::KeyUp {keycode: Some(Keycode::I), .. } => cpu.in_port2 &= !0x10,
+
                 Event::KeyUp {keycode: Some(Keycode::Num1), .. } => cpu.in_port1 &= !0x04,
-                Event::KeyUp {keycode: Some(Keycode::Period), .. } => cpu.in_port1 &= !0x10,
+                Event::KeyUp {keycode: Some(Keycode::Num2), .. } => cpu.in_port1 &= !0x02,
+                
+                Event::KeyUp {keycode: Some(Keycode::C), .. } => cpu.in_port1 &= !0x1,
                 _ => {}
             }
         }
