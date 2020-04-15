@@ -50,10 +50,10 @@ impl Emulator {
     }
 
     pub fn generate_interrupt(&self, cpu: &mut cpu::CPU, interrupt_num: u32) {
-        println!("Pushing to Stack(Interrupt): {:04x}",cpu.pc);
+        // println!("Pushing to Stack(Interrupt): {:04x}",cpu.pc);
         Self::push_to_stack_addr(cpu, cpu.pc);
         cpu.pc = 8*(interrupt_num as u16);
-        println!("PC is at: {:04x}",cpu.pc);
+        // println!("PC is at: {:04x}",cpu.pc);
         cpu.interrupts_enabled = false;
     }
     fn extract_argument(opcode: u8) -> Reg {
@@ -506,13 +506,13 @@ impl Emulator {
     }
 
     fn call(cpu: &mut cpu::CPU) {
-        println!("Instruction CALL called");
+        // println!("Instruction CALL called");
         Self::push_to_stack_addr(cpu, cpu.pc.wrapping_add(3));
         Self::jmp(cpu);
     }
 
     fn ret(cpu: &mut cpu::CPU) {
-        println!("Instruction RET called");
+        // println!("Instruction RET called");
         let addr = Self::pop_from_stack(cpu);
         Self::jmpt_to(cpu, addr);
     }
@@ -556,12 +556,12 @@ impl Emulator {
 		psw |= 1 << 1;
         psw |= cy;
         psw |= (cpu.a as u16) << 8;
-        println!("Pushing PSW to Stack: {:04x}, cpu.a: {:x}",psw,cpu.a);
+        // println!("Pushing PSW to Stack: {:04x}, cpu.a: {:x}",psw,cpu.a);
         Self::push_to_stack_addr(cpu, psw);
     }
 
     fn push_to_stack_addr(cpu: &mut cpu::CPU, addr : u16) {
-        println!("Pushing to stack addr: {:04x}",addr);
+        // println!("Pushing to stack addr: {:04x}",addr);
         cpu.memory[cpu.sp as usize - 1] = (addr >> 8) as u8;
         cpu.memory[cpu.sp as usize - 2] = addr as u8;
         cpu.sp = cpu.sp.wrapping_sub(2);
@@ -650,7 +650,7 @@ impl Emulator {
         let opcode: u8 = cpu.memory[cpu.pc as usize];
         // println!("op: 0x{:02x}, pc: {:04x}, Z: {}, S: {}, P: {}, CY: {}, AC: {}, sp: {:04x}, interrupt: {}",opcode,cpu.pc,cpu.flags.z,cpu.flags.s,cpu.flags.p,cpu.flags.cy,cpu.flags.ac,cpu.sp,cpu.interrupts_enabled);
         match opcode {
-            0x00 => println!(""),
+            0x00 => print!(""),
             0x01 => Self::lxi(cpu, Reg::B),
             0x02 => Self::stax(cpu, Reg::B),
             0x03 => Self::inx(cpu, Reg::B),

@@ -76,7 +76,7 @@ fn main() {
         half_step(&mut emulator, &mut canvas, &mut cpu, true);
         half_step(&mut emulator, &mut canvas, &mut cpu, false);
         canvas.present();
-        // thread::sleep(Duration::from_millis(16));
+        thread::sleep(Duration::from_millis(16));
     }
     
 }
@@ -88,7 +88,7 @@ fn half_step(emulator: &mut Emulator, canvas: &mut sdl2::render::Canvas<sdl2::vi
 
             cycles_spent += cycles;
         }
-        println!("REDRAWING!");
+        // println!("REDRAWING!");
         redraw_screen(canvas, cpu, top_half);
         if cpu.interrupts_enabled {
             emulator.generate_interrupt(cpu, if top_half { 1 } else { 2 });
